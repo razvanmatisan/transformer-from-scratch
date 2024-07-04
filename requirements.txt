@@ -1,0 +1,7 @@
+torch
+tqdm
+scikit-learn
+transformers
+numpy==2.0.0
+matplotlib
+ipykernel

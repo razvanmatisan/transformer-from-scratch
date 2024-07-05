@@ -25,12 +25,15 @@ class MultiHeadAttention(nn.Module):
         nn.init.xavier_uniform_(self.o_proj.weight)
         self.o_proj.bias.data.fill_(0)
 
-    def scaled_dot_product(self, q, k, v):
+    def scaled_dot_product(self, q, k, v, mask=None):
         # Transpouse of K:: (bs, heads, seq_len, d_k) -> (bs, heads, d_k, seq_len)
         k_T = torch.einsum('bhld->bhdl', k) 
         
         # Q * K_T / sqrt(d_k): (bs, heads, seq_len, seq_len)
         logits = torch.einsum('bhij,bhjk->bhik', q, k_T) / math.sqrt(self.d_k)
+
+        if mask is not None:
+            logits = logits.masked_fill(mask == 0, -1e20)
 
         # Softmax: (bs, heads, seq_len, seq_len)
         probs = torch.softmax(logits, dim=-1)
@@ -40,7 +43,7 @@ class MultiHeadAttention(nn.Module):
 
         return attentions
 
-    def forward(self, x):
+    def forward(self, x, mask=None):
         bs, seq_len, _ = x.shape
 
         # (bs, seq_len, 3 * d_model)
@@ -51,7 +54,7 @@ class MultiHeadAttention(nn.Module):
         q, k, v = torch.split(qkv, self.d_k, dim=-1)
 
         # (bs, heads, seq_len, d_v)
-        attentions = self.scaled_dot_product(q, k, v)
+        attentions = self.scaled_dot_product(q, k, v, mask=mask)
         
         # (bs, heads, d_v * heads = d_model)
         attentions = attentions.permute(0, 2, 1, 3).reshape(bs, seq_len, self.d_model)
